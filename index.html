@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тренажер: Множення звичайних дробів</title>
+    <!-- Підключаємо Tailwind CSS для адаптивного та приємного дизайну -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Підключаємо шрифт Nunito, який дуже легко читається дітьми -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+    <!-- Підключаємо бібліотеку для святкового конфетті при успіху -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0f9ff; /* М'який заспокійливий блакитний фон */
+            color: #1e293b;
+        }
+        /* Прибираємо стрілочки у числових полях вводу */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        /* Анімація легкої тряски при помилці */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.3s ease-in-out;
+        }
+        /* Перекреслення числа при скороченні */
+        .crossed-out {
+            position: relative;
+            color: #94a3b8;
+        }
+        .crossed-out::after {
+            content: '';
+            position: absolute;
+            left: -4px;
+            right: -4px;
+            top: 50%;
+            height: 3px;
+            background-color: #ef4444;
+            transform: rotate(-22deg);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-6 px-3 sm:px-6">
+
+    <!-- Головний контейнер -->
+    <div class="w-full max-w-5xl bg-white rounded-3xl shadow-xl border-2 border-sky-100 overflow-hidden">
+        
+        <!-- Шапка тренажера -->
+        <header class="bg-sky-500 text-white p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide">🧮 Множення звичайних дробів</h1>
+            </div>
+            
+            <!-- Лічильник зірочок -->
+            <div class="inline-flex items-center bg-sky-600/80 px-4 py-1.5 rounded-full text-amber-300 font-bold text-base sm:text-lg shadow-inner">
+                <span class="mr-2 text-xl">⭐</span>
+                <span>Зірочок: <span id="star-count" class="text-white">0</span></span>
+            </div>
+        </header>
+
+        <!-- Панель вибору рівня -->
+        <nav class="bg-sky-50 p-3 border-b border-sky-100 flex flex-wrap justify-center gap-2 sm:gap-4">
+            <button onclick="setLevel(1)" id="btn-lvl-1" class="level-btn px-4 py-2 rounded-2xl font-bold text-sm sm:text-base transition-all duration-200 shadow-sm bg-emerald-500 text-white ring-4 ring-emerald-200">
+                🌱 Рівень 1: Легкий
+            </button>
+            <button onclick="setLevel(2)" id="btn-lvl-2" class="level-btn px-4 py-2 rounded-2xl font-bold text-sm sm:text-base transition-all duration-200 shadow-sm bg-white text-slate-600 hover:bg-amber-50">
+                🌿 Рівень 2: Мішані числа
+            </button>
+            <button onclick="setLevel(3)" id="btn-lvl-3" class="level-btn px-4 py-2 rounded-2xl font-bold text-sm sm:text-base transition-all duration-200 shadow-sm bg-white text-slate-600 hover:bg-purple-50">
+                🌳 Рівень 3: Скорочення
+            </button>
+        </nav>
+
+        <!-- Робоча область з єдиним ланцюжком розв'язання -->
+        <main class="p-4 sm:p-8 flex flex-col items-center">
+            
+            <!-- Коротка нейтральна підказка тільки для 3 рівня, як взаємодіяти зі скороченням -->
+            <div id="level-3-tip" class="hidden mb-4 text-sm sm:text-base font-bold text-purple-700 bg-purple-50 px-4 py-2 rounded-xl border border-purple-200 text-center">
+                💡 Натисни на числа під спільною рискою, які хочеш скоротити
+            </div>
+
+            <!-- Контейнер для безперервного ланцюжка (як у зошиті) -->
+            <div class="w-full bg-slate-50/80 border-2 border-slate-200 rounded-3xl p-5 sm:p-8 overflow-x-auto">
+                <div id="chain-container" class="flex flex-wrap items-center justify-center gap-3 sm:gap-5 min-h-[140px]">
+                    <!-- Весь ланцюжок генерується тут -->
+                </div>
+            </div>
+
+            <!-- Блок зворотного зв'язку -->
+            <div id="feedback-box" class="hidden w-full max-w-2xl mt-6 p-3.5 rounded-2xl text-center font-bold text-base sm:text-lg transition-all">
+            </div>
+
+            <!-- Кнопки дій -->
+            <div class="mt-7 flex flex-wrap justify-center gap-4 w-full">
+                <button id="check-btn" onclick="checkChain()" class="px-8 py-3.5 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-extrabold text-lg rounded-2xl shadow-lg shadow-sky-200 transition-all">
+                    Перевірити приклад ✓
+                </button>
+                <button id="next-btn" onclick="generateNewProblem()" class="hidden px-8 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-extrabold text-lg rounded-2xl shadow-lg shadow-emerald-200 transition-all">
+                    Наступний приклад ➔
+                </button>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Логіка тренажера -->
+    <script>
+        let currentLevel = 1;
+        let stars = 0;
+        let currentProblem = null;
+        // Стан скорочених чисел на 3 рівні: { n1: bool, n2: bool, d1: bool, d2: bool }
+        let crossedState = { n1: false, n2: false, d1: false, d2: false };
+
+        window.onload = () => {
+            setLevel(1);
+        };
+
+        // Перемикання рівня складності
+        function setLevel(lvl) {
+            currentLevel = lvl;
+            
+            document.querySelectorAll('.level-btn').forEach((btn, idx) => {
+                const btnLvl = idx + 1;
+                btn.className = "level-btn px-4 py-2 rounded-2xl font-bold text-sm sm:text-base transition-all duration-200 shadow-sm ";
+                if (btnLvl === lvl) {
+                    if (lvl === 1) btn.className += "bg-emerald-500 text-white ring-4 ring-emerald-200";
+                    if (lvl === 2) btn.className += "bg-amber-500 text-white ring-4 ring-amber-200";
+                    if (lvl === 3) btn.className += "bg-purple-500 text-white ring-4 ring-purple-200";
+                } else {
+                    btn.className += "bg-white text-slate-600 hover:bg-slate-100";
+                }
+            });
+
+            // Показуємо лише технічну підказку про клік для 3 рівня
+            const tip = document.getElementById('level-3-tip');
+            if (lvl === 3) {
+                tip.classList.remove('hidden');
+            } else {
+                tip.classList.add('hidden');
+            }
+            
+            generateNewProblem();
+        }
+
+        function gcd(a, b) {
+            return b === 0 ? a : gcd(b, a % b);
+        }
+
+        // Генератор прикладів
+        function generateNewProblem() {
+            hideFeedback();
+            document.getElementById('check-btn').classList.remove('hidden');
+            document.getElementById('next-btn').classList.add('hidden');
+            crossedState = { n1: false, n2: false, d1: false, d2: false };
+            
+            let p = {};
+
+            if (currentLevel === 1) {
+                // Рівень 1: Правильний дріб, без скорочення + іноді ціле число
+                const isWhole = Math.random() < 0.35;
+                if (isWhole) {
+                    const wholeFirst = Math.random() < 0.5;
+                    const w = Math.floor(Math.random() * 3) + 2; // 2..4
+                    let d = w + Math.floor(Math.random() * 4) + 1;
+                    while (gcd(w, d) !== 1) d++;
+                    
+                    p = wholeFirst 
+                        ? { isWhole: true, wholePos: 'first', n1: w, d1: 1, n2: 1, d2: d }
+                        : { isWhole: true, wholePos: 'second', n1: 1, d1: d, n2: w, d2: 1 };
+                } else {
+                    const pairs = [
+                        [1, 2, 1, 3], [1, 2, 1, 5], [1, 3, 2, 5], [2, 3, 1, 5],
+                        [1, 4, 3, 5], [2, 5, 3, 7], [1, 3, 1, 4], [3, 4, 1, 5],
+                        [2, 3, 2, 5], [1, 2, 3, 7], [3, 5, 1, 4], [2, 7, 3, 5]
+                    ];
+                    const chosen = pairs[Math.floor(Math.random() * pairs.length)];
+                    p = { isWhole: false, n1: chosen[0], d1: chosen[1], n2: chosen[2], d2: chosen[3] };
+                }
+            } 
+            else if (currentLevel === 2) {
+                // Рівень 2: Неправильний дріб -> мішане число. Без скорочення + іноді ціле число
+                const isWhole = Math.random() < 0.4;
+                if (isWhole) {
+                    const wholeFirst = Math.random() < 0.5;
+                    const cases = [
+                        [3, 2, 5], [4, 2, 5], [3, 3, 4], [5, 2, 3],
+                        [2, 3, 5], [4, 3, 5], [3, 4, 5], [2, 4, 7]
+                    ];
+                    const c = cases[Math.floor(Math.random() * cases.length)];
+                    p = wholeFirst
+                        ? { isWhole: true, wholePos: 'first', n1: c[0], d1: 1, n2: c[1], d2: c[2] }
+                        : { isWhole: true, wholePos: 'second', n1: c[1], d1: c[2], n2: c[0], d2: 1 };
+                } else {
+                    const cases = [
+                        [3, 2, 3, 4], [4, 3, 2, 3], [5, 3, 2, 3], [3, 2, 5, 4],
+                        [4, 3, 4, 5], [5, 4, 3, 4], [7, 4, 3, 5], [5, 2, 3, 4]
+                    ];
+                    const c = cases[Math.floor(Math.random() * cases.length)];
+                    p = { isWhole: false, n1: c[0], d1: c[1], n2: c[2], d2: c[3] };
+                }
+            } 
+            else if (currentLevel === 3) {
+                // Рівень 3: Є можливість скоротити (без підказок)
+                const cases = [
+                    { n1: 2, d1: 3, n2: 1, d2: 4, rn1: 1, rd1: 3, rn2: 1, rd2: 2 },
+                    { n1: 3, d1: 5, n2: 2, d2: 9, rn1: 1, rd1: 5, rn2: 2, rd2: 3 },
+                    { n1: 1, d1: 6, n2: 3, d2: 5, rn1: 1, rd1: 2, rn2: 1, rd2: 5 },
+                    { n1: 4, d1: 7, n2: 3, d2: 8, rn1: 1, rd1: 7, rn2: 3, rd2: 2 },
+                    { n1: 5, d1: 6, n2: 1, d2: 10, rn1: 1, rd1: 6, rn2: 1, rd2: 2 },
+                    { n1: 2, d1: 7, n2: 5, d2: 6, rn1: 1, rd1: 7, rn2: 5, rd2: 3 },
+                    { n1: 2, d1: 9, n2: 3, d2: 4, rn1: 1, rd1: 3, rn2: 1, rd2: 2 },
+                    { n1: 3, d1: 8, n2: 4, d2: 9, rn1: 1, rd1: 2, rn2: 1, rd2: 3 },
+                    { n1: 5, d1: 12, n2: 6, d2: 25, rn1: 1, rd1: 2, rn2: 1, rd2: 5 },
+                    { n1: 4, d1: 9, n2: 3, d2: 5, rn1: 4, rd1: 3, rn2: 1, rd2: 5 },
+                    { n1: 7, d1: 10, n2: 5, d2: 8, rn1: 7, rd1: 2, rn2: 1, rd2: 8 }
+                ];
+                const c = cases[Math.floor(Math.random() * cases.length)];
+                p = { isWhole: false, ...c };
+            }
+
+            currentProblem = p;
+            renderChain();
+        }
+
+        // Рендеринг усього ланцюжка дій в один рядок
+        function renderChain() {
+            const container = document.getElementById('chain-container');
+            const p = currentProblem;
+            let html = '';
+
+            // 1. УМОВА ПРИКЛАДУ
+            const leftInit = (p.isWhole && p.wholePos === 'first')
+                ? `<span class="text-3xl sm:text-4xl font-extrabold text-slate-800">${p.n1}</span>`
+                : staticFractionHTML(p.n1, p.d1);
+
+            const rightInit = (p.isWhole && p.wholePos === 'second')
+                ? `<span class="text-3xl sm:text-4xl font-extrabold text-slate-800">${p.n2}</span>`
+                : staticFractionHTML(p.n2, p.d2);
+
+            html += `
+                <div class="flex items-center gap-2 sm:gap-3">
+                    ${leftInit}
+                    <span class="text-2xl font-bold text-sky-500">×</span>
+                    ${rightInit}
+                </div>
+                <span class="text-2xl sm:text-3xl font-bold text-slate-400">=</span>
+            `;
+
+            // 2. ЯКЩО Є ЦІЛЕ ЧИСЛО: перетворення у дріб зі знаменником 1
+            if (p.isWhole) {
+                const isFirst = p.wholePos === 'first';
+                html += `
+                    <div class="flex items-center gap-2 sm:gap-3">
+                        ${isFirst ? inputFractionHTML('w_n1', 'w_d1') : staticFractionHTML(p.n1, p.d1)}
+                        <span class="text-2xl font-bold text-sky-500">×</span>
+                        ${!isFirst ? inputFractionHTML('w_n2', 'w_d2') : staticFractionHTML(p.n2, p.d2)}
+                    </div>
+                    <span class="text-2xl sm:text-3xl font-bold text-slate-400">=</span>
+                `;
+            }
+
+            // 3. СПІЛЬНА РИСКА ДРОБУ
+            if (currentLevel === 3) {
+                // На 3 рівні під спільною рискою вже стоять числа, по яких учень сам клікає для скорочення
+                html += `
+                    <div class="flex flex-col items-center">
+                        <!-- Віконця зверху (з'являються при кліку на число) -->
+                        <div class="flex items-center gap-8 mb-1 h-10">
+                            <div class="w-12 flex justify-center">
+                                <input type="number" id="red_n1" class="hidden w-12 h-9 text-center text-lg font-extrabold text-purple-800 bg-purple-50 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            </div>
+                            <div class="w-12 flex justify-center">
+                                <input type="number" id="red_n2" class="hidden w-12 h-9 text-center text-lg font-extrabold text-purple-800 bg-purple-50 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            </div>
+                        </div>
+
+                        <!-- Чисельники (клікабельні) -->
+                        <div class="flex items-center gap-3 text-2xl sm:text-3xl font-extrabold text-slate-800">
+                            <button type="button" onclick="toggleCross('n1')" id="btn_cross_n1" title="Натисни, щоб скоротити"
+                                class="w-12 py-0.5 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer select-none">
+                                ${p.n1}
+                            </button>
+                            <span class="text-sky-500 text-xl">×</span>
+                            <button type="button" onclick="toggleCross('n2')" id="btn_cross_n2" title="Натисни, щоб скоротити"
+                                class="w-12 py-0.5 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer select-none">
+                                ${p.n2}
+                            </button>
+                        </div>
+
+                        <div class="w-36 sm:w-40 h-1 bg-slate-700 rounded-full my-1"></div>
+
+                        <!-- Знаменники (клікабельні) -->
+                        <div class="flex items-center gap-3 text-2xl sm:text-3xl font-extrabold text-slate-800">
+                            <button type="button" onclick="toggleCross('d1')" id="btn_cross_d1" title="Натисни, щоб скоротити"
+                                class="w-12 py-0.5 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer select-none">
+                                ${p.d1}
+                            </button>
+                            <span class="text-sky-500 text-xl">×</span>
+                            <button type="button" onclick="toggleCross('d2')" id="btn_cross_d2" title="Натисни, щоб скоротити"
+                                class="w-12 py-0.5 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer select-none">
+                                ${p.d2}
+                            </button>
+                        </div>
+
+                        <!-- Віконця знизу (з'являються при кліку на число) -->
+                        <div class="flex items-center gap-8 mt-1 h-10">
+                            <div class="w-12 flex justify-center">
+                                <input type="number" id="red_d1" class="hidden w-12 h-9 text-center text-lg font-extrabold text-purple-800 bg-purple-50 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            </div>
+                            <div class="w-12 flex justify-center">
+                                <input type="number" id="red_d2" class="hidden w-12 h-9 text-center text-lg font-extrabold text-purple-800 bg-purple-50 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // На 1 і 2 рівнях учень сам заповнює чисельники та знаменники під спільною рискою
+                html += `
+                    <div class="flex flex-col items-center">
+                        <div class="flex items-center gap-1.5 mb-1.5">
+                            ${numberInputHTML('c_n1')}
+                            <span class="text-xl font-bold text-sky-500">×</span>
+                            ${numberInputHTML('c_n2')}
+                        </div>
+                        <div class="w-36 sm:w-40 h-1 bg-slate-700 rounded-full"></div>
+                        <div class="flex items-center gap-1.5 mt-1.5">
+                            ${numberInputHTML('c_d1')}
+                            <span class="text-xl font-bold text-sky-500">×</span>
+                            ${numberInputHTML('c_d2')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 4. РЕЗУЛЬТАТ МНОЖЕННЯ (звичайний дріб)
+            html += `
+                <span class="text-2xl sm:text-3xl font-bold text-slate-400">=</span>
+                ${inputFractionHTML('res_num', 'res_den')}
+            `;
+
+            // 5. ЯКЩО РІВЕНЬ 2: виділення цілої частини (мішане число)
+            if (currentLevel === 2) {
+                html += `
+                    <span class="text-2xl sm:text-3xl font-bold text-slate-400">=</span>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="mix_whole"
+                            class="w-14 h-14 sm:w-16 sm:h-16 text-center text-2xl sm:text-3xl font-extrabold text-amber-800 bg-amber-50 border-2 border-amber-400 rounded-2xl focus:outline-none focus:ring-4 focus:ring-amber-200 transition-all">
+                        ${inputFractionHTML('mix_num', 'mix_den')}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+
+            // Додаємо перевірку по натисканню Enter у будь-якому полі
+            container.querySelectorAll('input').forEach(inp => {
+                inp.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') checkChain();
+                });
+            });
+
+            // Фокус на перше доступне поле
+            const firstVisibleInput = Array.from(container.querySelectorAll('input')).find(el => !el.classList.contains('hidden'));
+            if (firstVisibleInput) {
+                setTimeout(() => firstVisibleInput.focus(), 100);
+            }
+        }
+
+        // Перемикання закреслення числа на 3 рівні
+        function toggleCross(pos) {
+            // Якщо приклад вже перевірений і завершений — не даємо змінювати
+            if (document.getElementById('check-btn').classList.contains('hidden')) return;
+
+            crossedState[pos] = !crossedState[pos];
+            const btn = document.getElementById(`btn_cross_${pos}`);
+            const input = document.getElementById(`red_${pos}`);
+
+            if (crossedState[pos]) {
+                btn.classList.add('crossed-out', 'bg-slate-200/60');
+                input.classList.remove('hidden');
+                input.focus();
+            } else {
+                btn.classList.remove('crossed-out', 'bg-slate-200/60');
+                input.classList.add('hidden');
+                input.value = '';
+                input.classList.remove('border-rose-500', 'bg-rose-50');
+            }
+        }
+
+        // HTML-шаблони елементів
+        function numberInputHTML(id) {
+            return `<input type="number" id="${id}" 
+                class="w-14 h-11 sm:w-16 sm:h-12 text-center text-xl sm:text-2xl font-extrabold text-slate-800 bg-white border-2 border-sky-300 rounded-xl focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100 transition-all">`;
+        }
+
+        function staticFractionHTML(n, d) {
+            return `
+                <div class="inline-flex flex-col items-center text-2xl sm:text-3xl font-extrabold text-slate-800">
+                    <span class="px-2">${n}</span>
+                    <span class="w-full h-1 bg-slate-800 rounded"></span>
+                    <span class="px-2">${d}</span>
+                </div>
+            `;
+        }
+
+        function inputFractionHTML(idN, idD) {
+            return `
+                <div class="inline-flex flex-col items-center">
+                    ${numberInputHTML(idN)}
+                    <div class="w-16 sm:w-20 h-1 bg-slate-700 rounded my-1.5"></div>
+                    ${numberInputHTML(idD)}
+                </div>
+            `;
+        }
+
+        // Комплексна перевірка всього ланцюжка
+        function checkChain() {
+            const p = currentProblem;
+            let fieldsToCheck = [];
+            let customErrorMsg = null;
+
+            // 1. Перевірка перетворення цілого числа (якщо є)
+            if (p.isWhole) {
+                if (p.wholePos === 'first') {
+                    fieldsToCheck.push({ id: 'w_n1', expected: p.n1 });
+                    fieldsToCheck.push({ id: 'w_d1', expected: 1 });
+                } else {
+                    fieldsToCheck.push({ id: 'w_n2', expected: p.n2 });
+                    fieldsToCheck.push({ id: 'w_d2', expected: 1 });
+                }
+            }
+
+            // 2. Перевірка спільної риски та скорочення
+            if (currentLevel === 3) {
+                const positions = ['n1', 'n2', 'd1', 'd2'];
+                const expectedReduced = { n1: p.rn1, n2: p.rn2, d1: p.rd1, d2: p.rd2 };
+                const originalVals = { n1: p.n1, n2: p.n2, d1: p.d1, d2: p.d2 };
+
+                let missedReduction = false;
+                let wrongReduction = false;
+
+                positions.forEach(pos => {
+                    const shouldBeReduced = expectedReduced[pos] !== originalVals[pos];
+                    const isCrossed = crossedState[pos];
+                    const btn = document.getElementById(`btn_cross_${pos}`);
+                    btn.classList.remove('ring-2', 'ring-rose-500');
+
+                    if (shouldBeReduced && !isCrossed) {
+                        missedReduction = true;
+                        btn.classList.add('ring-2', 'ring-rose-500');
+                    } else if (!shouldBeReduced && isCrossed) {
+                        wrongReduction = true;
+                        btn.classList.add('ring-2', 'ring-rose-500');
+                    } else if (shouldBeReduced && isCrossed) {
+                        fieldsToCheck.push({ id: `red_${pos}`, expected: expectedReduced[pos] });
+                    }
+                });
+
+                if (wrongReduction) {
+                    customErrorMsg = "Одне з виділених чисел не скорочується. Натисни на нього ще раз, щоб скасувати.";
+                } else if (missedReduction) {
+                    customErrorMsg = "Знайди всі числа, які можна скоротити навхрест, та натисни на них!";
+                }
+            } else {
+                fieldsToCheck.push({ id: 'c_n1', expected: p.n1 });
+                fieldsToCheck.push({ id: 'c_n2', expected: p.n2 });
+                fieldsToCheck.push({ id: 'c_d1', expected: p.d1 });
+                fieldsToCheck.push({ id: 'c_d2', expected: p.d2 });
+            }
+
+            // 3. Перевірка результату множення (дріб)
+            const resNum = (currentLevel === 3) ? (p.rn1 * p.rn2) : (p.n1 * p.n2);
+            const resDen = (currentLevel === 3) ? (p.rd1 * p.rd2) : (p.d1 * p.d2);
+            fieldsToCheck.push({ id: 'res_num', expected: resNum });
+            fieldsToCheck.push({ id: 'res_den', expected: resDen });
+
+            // 4. Перевірка мішаного числа (для 2 рівня)
+            if (currentLevel === 2) {
+                const wholePart = Math.floor(resNum / resDen);
+                const remNum = resNum % resDen;
+                fieldsToCheck.push({ id: 'mix_whole', expected: wholePart });
+                fieldsToCheck.push({ id: 'mix_num', expected: remNum });
+                fieldsToCheck.push({ id: 'mix_den', expected: resDen });
+            }
+
+            // Валідуємо всі зібрані поля
+            let allFieldsOk = true;
+            let hasEmpty = false;
+
+            fieldsToCheck.forEach(f => {
+                const el = document.getElementById(f.id);
+                const val = parseInt(el.value, 10);
+
+                el.classList.remove('border-rose-500', 'bg-rose-50', 'animate-shake', 'border-emerald-500', 'bg-emerald-50');
+
+                if (isNaN(val)) {
+                    hasEmpty = true;
+                    allFieldsOk = false;
+                    el.classList.add('border-rose-400', 'bg-rose-50');
+                } else if (val !== f.expected) {
+                    allFieldsOk = false;
+                    el.classList.add('border-rose-500', 'bg-rose-50', 'animate-shake');
+                } else {
+                    el.classList.add('border-emerald-500', 'bg-emerald-50', 'text-emerald-800');
+                }
+            });
+
+            // Пріоритет повідомлень про помилки
+            if (customErrorMsg) {
+                showFeedback(customErrorMsg, "error");
+                return;
+            }
+            if (hasEmpty) {
+                showFeedback("Заповни всі порожні віконця у ланцюжку! ✍️", "warning");
+                return;
+            }
+            if (!allFieldsOk) {
+                showFeedback("Перевір червоні віконця — там є помилка. Спробуй виправити! 💪", "error");
+                return;
+            }
+
+            // Якщо все правильно — блокуємо інпути і вітаємо учня
+            fieldsToCheck.forEach(f => {
+                document.getElementById(f.id).disabled = true;
+            });
+
+            stars++;
+            document.getElementById('star-count').innerText = stars;
+            showFeedback("🎉 Чудово! Увесь ланцюжок розв'язано правильно! ⭐", "success");
+            
+            document.getElementById('check-btn').classList.add('hidden');
+            document.getElementById('next-btn').classList.remove('hidden');
+
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 70,
+                    spread: 60,
+                    origin: { y: 0.7 }
+                });
+            }
+        }
+
+        function showFeedback(text, type) {
+            const box = document.getElementById('feedback-box');
+            box.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-800', 'bg-rose-100', 'text-rose-800', 'bg-amber-100', 'text-amber-800');
+            
+            if (type === 'success') {
+                box.classList.add('bg-emerald-100', 'text-emerald-800');
+            } else if (type === 'error') {
+                box.classList.add('bg-rose-100', 'text-rose-800');
+            } else {
+                box.classList.add('bg-amber-100', 'text-amber-800');
+            }
+            
+            box.innerText = text;
+        }
+
+        function hideFeedback() {
+            document.getElementById('feedback-box').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
